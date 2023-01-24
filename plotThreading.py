@@ -3,6 +3,7 @@
 from threading import Thread
 import serial
 import time
+import datetime
 import collections
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -115,8 +116,10 @@ class serialPlot:
         self.thread.join()
         self.serialConnection.close()
         print('Disconnected...')
+        fileSaveTime = datetime.datetime.now().strftime("%H_%M_%S")
         df = pd.DataFrame(self.csvData)
-        df.to_csv('C:/Users/Justin/Documents/PythonCode/data.csv')
+        fileToSave='C:/Users/Justin/Documents/PythonCode/PythonGraphingDataCSV/testData/flowData' + fileSaveTime + '.csv'
+        df.to_csv(fileToSave)
 
 
 def main():
