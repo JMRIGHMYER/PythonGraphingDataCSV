@@ -10,9 +10,10 @@ import matplotlib.animation as animation
 import struct
 import copy
 import pandas as pd
+import argparse
 
 class serialPlot:
-    def __init__(self, serialPort='/dev/ttyACM0', serialBaud=115200, plotLength=100, dataNumBytes=4, numPlots=1):
+    def __init__(self, serialPort='COM5', serialBaud=115200, plotLength=100, dataNumBytes=4, numPlots=1):
         self.port = serialPort
         self.baud = serialBaud
         self.plotMaxLength = plotLength
@@ -42,6 +43,7 @@ class serialPlot:
         self.flow_average_data = []
         self.flow_moving_average_sum = 0
         self.flowRate = 0
+        self.oxygenRequest = 21
 
         print('Trying to connect to: ' + str(serialPort) + ' at ' + str(serialBaud) + ' BAUD.')
         try:
@@ -79,6 +81,7 @@ class serialPlot:
 
         
     def calculateFlowVolume(self,currentFlowValue):
+        oxyPercent = int(self.oxygenRequest)
         #flow sensor scale and offset are applied at arduino microprosessor
         ##flowSensorValSLM = (flowSensorVal - flowSensorOffset)/((float)(flowSensorScale));
         
@@ -118,18 +121,28 @@ class serialPlot:
         print('Disconnected...')
         fileSaveTime = datetime.datetime.now().strftime("%H_%M_%S")
         df = pd.DataFrame(self.csvData)
-        fileToSave='C:/Users/Justin/Documents/PythonCode/PythonGraphingDataCSV/testData/flowData' + fileSaveTime + '.csv'
+        fileToSave='C:/Users/Justin/Documents/PythonCode/PythonGraphingDataCSV/testData/flowData_' +self.oxygenRequest + '%_' + fileSaveTime + '.csv'
         df.to_csv(fileToSave)
 
 
 def main():
+    
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--port",type=str)
+    ap.add_argument("--oxy",type=str)
+    args = vars(ap.parse_args())
     #portName = '/dev/ttyACM0'
-    portName = 'COM5'
+    #portName = 'COM4'
+    portName=args["port"]
+    oxygen = args["oxy"]
+   
     baudRate = 115200
     maxPlotLength = 500     # number of points in x-axis of real time plot
-    dataNumBytes = 4        # number of bytes of 1 data point
+    dataNumBytes = 4        # number o,f bytes of 1 data point
     numPlots = 4            # number of plots in 1 graph
     s = serialPlot(portName, baudRate, maxPlotLength, dataNumBytes, numPlots)   # initializes all required variables
+    
+    s.oxygenRequest = oxygen
     s.readSerialStart()                                               # starts background thread
 
     # plotting starts below
