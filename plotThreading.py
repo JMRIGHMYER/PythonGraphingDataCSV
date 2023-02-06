@@ -31,7 +31,7 @@ class serialPlot:
         self.plotdata = []
         for i in range(numPlots):   # give an array for each type of data and store them in a list
             self.data.append(collections.deque([0] * plotLength, maxlen=plotLength))
-        for i in range(numPlots +1):    
+        for i in range(numPlots + 2):    
             self.plotdata.append(collections.deque([0] * plotLength, maxlen=plotLength))
         self.isRun = True
         self.isReceiving = False
@@ -39,11 +39,13 @@ class serialPlot:
         self.plotTimer = 0
         self.previousTimer = 0
         self.csvData = []
-        self.MINUTE_VOLUME_WINDOW_SIZE = 200 #averaging over a half second with 5mS sample rate
+        self.MINUTE_VOLUME_WINDOW_SIZE = 200 #averaging over a second with 5mS sample rate
         self.flow_average_data = []
         self.flow_moving_average_sum = 0
         self.flowRate = 0
         self.oxygenRequest = 21
+        self.text_count = 0
+        self.bpm = 0
 
         print('Trying to connect to: ' + str(serialPort) + ' at ' + str(serialBaud) + ' BAUD.')
         try:
@@ -76,8 +78,10 @@ class serialPlot:
         rawFlowValue=self.data[1][-1]
         self.flowRate=self.calculateFlowVolume(rawFlowValue)
         self.plotdata[self.numPlots].append(self.flowRate)
+        self.tidalVolume=self.flowRate/self.bpm*1000
+        self.plotdata[self.numPlots+1].append(self.tidalVolume)
         
-        self.csvData.append([self.data[0][-1], self.data[1][-1], self.data[2][-1], self.data[3][-1], self.plotdata[self.numPlots][-1]])
+        self.csvData.append([self.data[0][-1], self.data[1][-1], self.data[2][-1], self.data[3][-1], self.plotdata[4][-1],self.plotdata[5][-1]])
 
         
     def calculateFlowVolume(self,currentFlowValue):
@@ -87,6 +91,10 @@ class serialPlot:
         
         #flow sensor reports in lpm but at undesired temp and press, we want STDP0
         adj_flow = (273.15/293.15)*(101300.0/101325.0)*currentFlowValue;
+        
+        #adjust flow rate based upon percent oxygen requested
+        #to do here
+        
         average_flow =self.processMovingAverage(adj_flow)
         
         return average_flow
@@ -112,7 +120,11 @@ class serialPlot:
             lines[i].set_data(range(self.plotMaxLength), self.plotdata[i])#this line is what feeds the data to the plots
             #lineValueText[i].set_text('[' + lineLabel[i] + '] = ' + str(value))
         lines[self.numPlots].set_data(range(self.plotMaxLength), self.plotdata[self.numPlots])
-        lineValueText[self.numPlots].set_text('[' + lineLabel[self.numPlots] + '] = ' + str(self.flowRate))        
+        self.text_count = self.text_count + 1
+        if self.text_count > 5:    
+            lineValueText[self.numPlots].set_text('[' + lineLabel[self.numPlots] + '] = ' + str(self.flowRate)) 
+            lineValueText[3].set_text('[Tidal Volume = ' + str(self.tidalVolume)) 
+            self.text_count = 0
             
     def close(self):
         self.isRun = False
@@ -130,27 +142,35 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--port",type=str)
     ap.add_argument("--oxy",type=str)
+    ap.add_argument("--bpm",type=int)
     args = vars(ap.parse_args())
     #portName = '/dev/ttyACM0'
     #portName = 'COM4'
     portName=args["port"]
     oxygen = args["oxy"]
-   
+    brpm = args["bpm"]
     baudRate = 115200
     maxPlotLength = 500     # number of points in x-axis of real time plot
     dataNumBytes = 4        # number o,f bytes of 1 data point
     numPlots = 4            # number of plots in 1 graph
     s = serialPlot(portName, baudRate, maxPlotLength, dataNumBytes, numPlots)   # initializes all required variables
+    s.bpm=brpm
+    windowCalc = int(1/(s.bpm/60)/0.005*3)
+    s.MINUTE_VOLUME_WINDOW_SIZE = windowCalc
+    print(s.MINUTE_VOLUME_WINDOW_SIZE)
+
     
+    
+    #print(windowCalc)
     s.oxygenRequest = oxygen
     s.readSerialStart()                                               # starts background thread
 
     # plotting starts below
-    pltInterval = 25 # Period at which the plot animation updates [ms]
+    pltInterval = 100 # Period at which the plot animation updates [ms]
     xmin = 0
     xmax = maxPlotLength
     ymin =  0
-    ymax = 6
+    ymax = 100
     fig = plt.figure(figsize=(10, 8))
     ax = plt.axes(xlim=(xmin, xmax), ylim=(float(ymin - (ymax - ymin) / 10), float(ymax + (ymax - ymin) / 10)))
     ax.set_title('Flow Volume Testing')
